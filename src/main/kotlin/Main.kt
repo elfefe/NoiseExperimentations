@@ -36,7 +36,9 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.lang.Exception
+import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.round
 import kotlin.reflect.KClass
 import kotlin.reflect.typeOf
 
@@ -163,9 +165,6 @@ fun DrawScope.noise(
     val width = size.width.toInt()
     val height = size.height.toInt()
 
-    val randomPoints = ArrayList<ArrayList<ArrayList<Float>>>()
-    val randomPoints2D = Array(width) { Array(height) { 0f } }
-
     onGeneration(
         """
         Generate the first map of points
@@ -173,10 +172,47 @@ fun DrawScope.noise(
         """.trimIndent()
     )
 
+    val randomPoints = generatePixelsScaledWithDepth(width, height, depth, scale)
+    val compressedPoints = compressPoints(randomPoints, width, height, scale)
+
+    onGeneration(
+        """
+        Drawing the points
+        """.trimIndent()
+    )
+
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                val colorValue = compressedPoints[x][y].let {
+                    if (isClamped)
+                        if (it >= .5f) 1f else 0f
+                    else it
+                }
+                val color = Color(colorValue, colorValue, colorValue)
+                val squareSize = sizeOne * scale
+                drawRect(
+                    color = color,
+                    topLeft = Offset(floor(x * squareSize.width), floor(y * squareSize.height)),
+                    size = squareSize,
+                    style = Fill
+                )
+            }
+        }
+
+    onGenerated()
+}
+
+fun generatePixelsScaledWithDepth(
+    width: Int,
+    height: Int,
+    depth: Int,
+    scale: Float
+): ArrayList<ArrayList<ArrayList<Float>>> {
+    val randomPoints = ArrayList<ArrayList<ArrayList<Float>>>()
     for (d in 1..depth) {
         val squareSize = Size(
-            size.width / (size.width / d) * scale,
-            size.height / (size.height / d) * scale
+            d * scale,
+            d * scale
         )
         val scaleWidth = (width / squareSize.width).toInt()
         val scaleHeight = (height / squareSize.height).toInt()
@@ -186,107 +222,48 @@ fun DrawScope.noise(
         for (x in 0 until scaleWidth) {
             val heightArray = ArrayList<Float>()
             for (y in 0 until scaleHeight) {
-                heightArray.add((Math.random().toFloat() * 255) / depth)
+                heightArray.add(Math.random().toFloat())
             }
             widthArray.add(heightArray)
         }
         randomPoints.add(widthArray)
-        onGeneration(
-            """
-        Generate the first map of points
-        ${(d - 1) * (100 / depth)}%
-        """.trimIndent()
-        )
     }
+    return randomPoints
+}
 
-/*    onGeneration(
-        """
-        Averaging the points for each depth
-        0%
-        """.trimIndent()
-    )
+fun compressPoints(
+    points: ArrayList<ArrayList<ArrayList<Float>>>,
+    width: Int,
+    height: Int,
+    scale: Float
+): Array<Array<Float>> {
+    val depth = points.size
+
+    val randomPoints2D = Array(width) { Array(height) { 0f } }
 
     for (d in 0 until depth) {
+        val squareSize = Size(
+            round((d + 1) * scale),
+            round((d + 1) * scale)
+        )
         for (x in 0 until width) {
             for (y in 0 until height) {
-                val depthScale = 1f / (d + 1)
-                val xScale = floor(x * depthScale / scale).toInt()
-                val yScale = floor(y * depthScale / scale).toInt()
+                val xScale = round(x / squareSize.width).toInt()
+                val yScale = round(y / squareSize.height).toInt()
 
-//                println("$d: ${floor(width * depthScale / scale)} / ${randomPoints[d].size}")
+//                println("SquareWidth: ${squareSize.width}\nPoint x size $xScale/$x = ${points[d].size}/$width")
+//                println("SquareHeight: ${squareSize.height}\nPoint y size $yScale/$y = ${points[d][xScale].size}/$height")
 
-                if (xScale < randomPoints[d].size) {
-                    var shade = randomPoints2D[x][y] + randomPoints[d][xScale][yScale]
-                    if (d == depth - 1)
-                        shade /= depth
-                    randomPoints2D[x][y] = shade
+                var point = points[d][points[d].size - 1][points[d][0].size - 1]
+                if (xScale < points[d].size && yScale < points[d][xScale].size) {
+                    point = points[d][xScale][yScale]
+
                 }
-            }
-        }
-
-        onGeneration(
-            """
-        Averaging the points for each depth
-        ${(d) * (100 / depth)}%
-        """.trimIndent()
-        )
-    }
-
-    for (x in 0 until width) {
-        print("$width -> ")
-        for (y in 0 until height) {
-            print("${randomPoints2D[x][y]}, ")
-        }
-        print("\n")
-    }*/
-
-    onGeneration(
-        """
-        Drawing the points
-        """.trimIndent()
-    )
-
-/*    for (x in 0 until width) {
-        for (y in 0 until height) {
-            val colorValue = randomPoints2D[x][y].let {
-                if (isClamped)
-                    if (it >= .5f) 1f else 0f
-                else it
-            }
-            val color = Color(colorValue, colorValue, colorValue)
-            drawRect(
-                color = color,
-                topLeft = Offset(x.toFloat(), y.toFloat()),
-                size = Size(1f, 1f),
-                alpha = 1f / depth,
-                style = Fill
-            )
-        }
-    }*/
-
-    for (d in 0 until randomPoints.size) {
-        for (x in 0 until randomPoints[d].size) {
-            for (y in 0 until randomPoints[d][x].size) {
-                val colorValue = randomPoints[d][x][y].let {
-                    if (isClamped)
-                        if (it >= .5f) 1f else 0f
-                    else it
-                }
-                val color = Color(colorValue, colorValue, colorValue)
-                val squareSize = Size(
-                    size.width / randomPoints[d].size,
-                    size.height / randomPoints[d][x].size
-                )
-                drawRect(
-                    color = color,
-                    topLeft = Offset(x * squareSize.width, y * squareSize.height),
-                    size = squareSize,
-                    alpha = 1f / depth,
-                    style = Fill
-                )
+                randomPoints2D[x][y] += point / depth
             }
         }
     }
-
-    onGenerated()
+    return randomPoints2D
 }
+
+val sizeOne = Size(1f, 1f)
