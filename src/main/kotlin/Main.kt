@@ -45,12 +45,18 @@ import kotlin.reflect.typeOf
 val coroutineScope = CoroutineScope(Dispatchers.Main)
 val mutex = Mutex()
 
+fun main() = application {
+    Window(onCloseRequest = ::exitApplication) {
+        App()
+    }
+}
+
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 @Preview
 fun App() {
-    var depth: Float by remember { mutableStateOf(1f) }
-    var scale: Float by remember { mutableStateOf(1f) }
+    var depth: Int by remember { mutableStateOf(1) }
+    var scale: Int by remember { mutableStateOf(1) }
     var isClamped: Boolean by remember { mutableStateOf(false) }
 
     val generationFlow = MutableStateFlow(Pair(false, "Init..."))
@@ -80,12 +86,12 @@ fun App() {
             ) {
                 Text("Depth - $depth")
                 Slider(
-                    value = depth,
+                    value = depth.toFloat(),
                     onValueChange = {
-                        depth = it
+                        depth = round(it).toInt()
                     },
                     steps = 0,
-                    valueRange = 1f.rangeTo(100f)
+                    valueRange = 1f.rangeTo(30f)
                 )
             }
             Column(
@@ -95,12 +101,12 @@ fun App() {
             ) {
                 Text("Scale - $scale")
                 Slider(
-                    value = scale,
+                    value = scale.toFloat(),
                     onValueChange = {
-                        scale = it
+                        scale = round(it).toInt()
                     },
                     steps = 0,
-                    valueRange = 1f.rangeTo(20f)
+                    valueRange = 1f.rangeTo(10f)
                 )
             }
             Column(
@@ -123,7 +129,7 @@ fun App() {
                 .background(Color.White)
         ) {
             noise(
-                depth = depth.toInt(),
+                depth = depth,
                 scale = scale,
                 isClamped = isClamped,
                 onGeneration = {
@@ -148,15 +154,9 @@ fun App() {
     }
 }
 
-fun main() = application {
-    Window(onCloseRequest = ::exitApplication) {
-        App()
-    }
-}
-
 fun DrawScope.noise(
     depth: Int = 1,
-    scale: Float = 1f,
+    scale: Int = 1,
     isClamped: Boolean = false,
     onGeneration: (String) -> Unit,
     onGenerated: () -> Unit
@@ -188,8 +188,9 @@ fun DrawScope.noise(
                         if (it >= .5f) 1f else 0f
                     else it
                 }
+//                println("x${x}y$y Color: $colorValue")
                 val color = Color(colorValue, colorValue, colorValue)
-                val squareSize = sizeOne * scale
+                val squareSize = sizeOne * (scale * 1f)
                 drawRect(
                     color = color,
                     topLeft = Offset(floor(x * squareSize.width), floor(y * squareSize.height)),
@@ -201,69 +202,3 @@ fun DrawScope.noise(
 
     onGenerated()
 }
-
-fun generatePixelsScaledWithDepth(
-    width: Int,
-    height: Int,
-    depth: Int,
-    scale: Float
-): ArrayList<ArrayList<ArrayList<Float>>> {
-    val randomPoints = ArrayList<ArrayList<ArrayList<Float>>>()
-    for (d in 1..depth) {
-        val squareSize = Size(
-            d * scale,
-            d * scale
-        )
-        val scaleWidth = (width / squareSize.width).toInt()
-        val scaleHeight = (height / squareSize.height).toInt()
-
-        val widthArray = ArrayList<ArrayList<Float>>()
-
-        for (x in 0 until scaleWidth) {
-            val heightArray = ArrayList<Float>()
-            for (y in 0 until scaleHeight) {
-                heightArray.add(Math.random().toFloat())
-            }
-            widthArray.add(heightArray)
-        }
-        randomPoints.add(widthArray)
-    }
-    return randomPoints
-}
-
-fun compressPoints(
-    points: ArrayList<ArrayList<ArrayList<Float>>>,
-    width: Int,
-    height: Int,
-    scale: Float
-): Array<Array<Float>> {
-    val depth = points.size
-
-    val randomPoints2D = Array(width) { Array(height) { 0f } }
-
-    for (d in 0 until depth) {
-        val squareSize = Size(
-            round((d + 1) * scale),
-            round((d + 1) * scale)
-        )
-        for (x in 0 until width) {
-            for (y in 0 until height) {
-                val xScale = round(x / squareSize.width).toInt()
-                val yScale = round(y / squareSize.height).toInt()
-
-//                println("SquareWidth: ${squareSize.width}\nPoint x size $xScale/$x = ${points[d].size}/$width")
-//                println("SquareHeight: ${squareSize.height}\nPoint y size $yScale/$y = ${points[d][xScale].size}/$height")
-
-                var point = points[d][points[d].size - 1][points[d][0].size - 1]
-                if (xScale < points[d].size && yScale < points[d][xScale].size) {
-                    point = points[d][xScale][yScale]
-
-                }
-                randomPoints2D[x][y] += point / depth
-            }
-        }
-    }
-    return randomPoints2D
-}
-
-val sizeOne = Size(1f, 1f)
