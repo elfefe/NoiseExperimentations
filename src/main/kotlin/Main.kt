@@ -186,7 +186,7 @@ fun DrawScope.noise(
         for (x in 0 until scaleWidth) {
             val heightArray = ArrayList<Float>()
             for (y in 0 until scaleHeight) {
-                heightArray.add((Math.random().toFloat() * 255) / depth)
+                heightArray.add(Math.random().toFloat())
             }
             widthArray.add(heightArray)
         }
